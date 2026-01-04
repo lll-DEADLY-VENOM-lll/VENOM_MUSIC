@@ -26,7 +26,6 @@ spotipy
 pymongo==3.12.0
 tgcrypto
 unidecode
-uvloop
 yt-dlp
 youtube-search
 youtube-search-python
@@ -34,3 +33,20 @@ wget
 ytmusicapi
 aria2
 safoneAPI
+asyncio
+python-telegram-bot
+emojis
+pycountry
+Gtts
+gtts
+telegraph
+daxxhub
+img2pdf
+SpeechRecognition
+youtube-search-python
+beautifulsoup4 lxml
+whois
+pyfiglet
+qrcode
+pydub
+python-whois
