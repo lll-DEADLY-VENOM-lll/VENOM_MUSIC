@@ -9,8 +9,8 @@ from pyrogram import filters
 load_dotenv()
 # ------------------------------------
 # -----------------------------------------------------
-API_ID = int(getenv("API_ID", 27423048))
-API_HASH = getenv("API_HASH")
+API_ID = int(getenv("API_ID", ""))
+API_HASH = getenv("API_HASH", "")
 # ------------------------------------------------------
 BOT_TOKEN = getenv("BOT_TOKEN")
 # -------------------------------------------------------
@@ -40,7 +40,7 @@ DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 17000))
 LOGGER_ID = int(getenv("LOGGER_ID", -1002223516578))
 # ----------------------------------------------------------------
 # ----------------------------------------------------------------
-OWNER_ID = int(getenv("OWNER_ID", 6972508083))
+OWNER_ID = int(getenv("OWNER_ID", "8520496440")
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------
 
@@ -69,8 +69,8 @@ GIT_TOKEN = getenv(
 
 # ------------------------------------------------------------------------
 # -------------------------------------------------------------------------
-SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/+5M_sJUelO19lM2Zl")
-SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/+5M_sJUelO19lM2Zl")
+SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/about_deadly_venom")
+SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/NOBITA_SUPPORT")
 # ------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------
 
@@ -150,12 +150,12 @@ confirmer = {}
 # ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 START_IMG_URL = getenv(
-    "START_IMG_URL", "https://files.catbox.moe/l58zhm.jpg"
+    "START_IMG_URL", "https://graph.org/file/48031a9f0a99c6bf85490-033ed12793a22cbc12.jpg"
 )
 PING_IMG_URL = getenv(
-    "PING_IMG_URL", "https://files.catbox.moe/l58zhm.jpg"
+    "PING_IMG_URL", "https://graph.org/file/ede104b2b2bdadd060801-ce59d5add4472ecd84.jpg"
 )
-PLAYLIST_IMG_URL = "https://files.catbox.moe/l58zhm.jpg"
+PLAYLIST_IMG_URL = "https://graph.org/file/cc0b24d87880ffd2c9174-10d3e3c8a5b407eb15.jpg"
 STATS_IMG_URL = "https://files.catbox.moe/l58zhm.jpg"
 TELEGRAM_AUDIO_URL = "https://files.catbox.moe/l58zhm.jpg"
 TELEGRAM_VIDEO_URL = "https://files.catbox.moe/l58zhm.jpg"
