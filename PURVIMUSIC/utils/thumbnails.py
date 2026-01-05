@@ -1,139 +1,143 @@
-import asyncio
-import os
-import re
-import httpx
-from io import BytesIO
+import asyncio, os, re, httpx, aiofiles.os
+from io import BytesIO 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
-from youtubesearchpython.__future__ import VideosSearch
+from aiofiles.os import path as aiopath
+# Video को भी इम्पोर्ट करें
+from youtubesearchpython.__future__ import VideosSearch, Video
+
 from ..logging import LOGGER
 
-# Fonts loading with extra safety
 def load_fonts():
-    # Paths for fonts
-    cfont_path = "PURVIMUSIC/assets/cfont.ttf"
-    tfont_path = "PURVIMUSIC/assets/font.ttf"
-    
     try:
-        if os.path.exists(cfont_path) and os.path.exists(tfont_path):
-            return {
-                "title": ImageFont.truetype(tfont_path, 45), # Title bada kiya
-                "artist": ImageFont.truetype(cfont_path, 30),
-                "stats": ImageFont.truetype(cfont_path, 25),
-            }
+        return {
+            "cfont": ImageFont.truetype("PURVIMUSIC/assets/cfont.ttf", 24),
+            "tfont": ImageFont.truetype("PURVIMUSIC/assets/font.ttf", 30),
+        }
     except Exception as e:
-        LOGGER.error(f"Font loading error: {e}")
-    
-    return {
-        "title": ImageFont.load_default(),
-        "artist": ImageFont.load_default(),
-        "stats": ImageFont.load_default(),
-    }
+        LOGGER.error(f"Font loading error: {e}, using default fonts")
+        return {
+            "cfont": ImageFont.load_default(),
+            "tfont": ImageFont.load_default(),
+        }
 
 FONTS = load_fonts()
 FALLBACK_IMAGE_PATH = "PURVIMUSIC/assets/controller.png"
+YOUTUBE_IMG_URL = "https://i.ytimg.com/vi/default.jpg"
+
+async def resize_youtube_thumbnail(img: Image.Image) -> Image.Image:
+    target_width, target_height = 1280, 720
+    img = img.convert("RGBA")
+    aspect_ratio = img.width / img.height
+    target_ratio = target_width / target_height
+
+    if aspect_ratio > target_ratio:
+        new_height = target_height
+        new_width = int(new_height * aspect_ratio)
+    else:
+        new_width = target_width
+        new_height = int(new_width / aspect_ratio)
+
+    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    left = (new_width - target_width) // 2
+    top = (new_height - target_height) // 2
+    img = img.crop((left, top, left + target_width, top + target_height))
+    return ImageEnhance.Sharpness(img).enhance(1.5)
 
 async def fetch_image(url: str) -> Image.Image:
     async with httpx.AsyncClient() as client:
         try:
-            # High Resolution image koshish karega
-            response = await client.get(url, timeout=15)
+            response = await client.get(url, timeout=10)
             response.raise_for_status()
-            img = Image.open(BytesIO(response.content))
-            return img.convert("RGBA")
+            img = Image.open(BytesIO(response.content)).convert("RGBA")
+            return await resize_youtube_thumbnail(img)
         except Exception as e:
-            LOGGER.error(f"Image fetch error: {e}")
+            LOGGER.error(f"Image load error: {e}")
             if os.path.exists(FALLBACK_IMAGE_PATH):
-                return Image.open(FALLBACK_IMAGE_PATH).convert("RGBA")
+                img = Image.open(FALLBACK_IMAGE_PATH).convert("RGBA")
+                return await resize_youtube_thumbnail(img)
             return Image.new("RGBA", (1280, 720), (20, 20, 20, 255))
 
-def clean_text(text: str, limit: int = 30) -> str:
+def clean_text(text: str, limit: int = 25) -> str:
     if not text: return "Unknown"
-    text = text.encode("ascii", "ignore").decode("ascii") # Non-english chars hatane ke liye
-    return f"{text[:limit]}..." if len(text) > limit else text
+    text = text.strip()
+    return f"{text[:limit-3]}..." if len(text) > limit else text
 
-async def create_modern_thumb(raw_img: Image.Image, title: str, artist: str, duration: str):
-    # 1. Background: Blurred & Darkened
-    bg = raw_img.resize((1280, 720), Image.Resampling.LANCZOS)
-    bg = bg.filter(ImageFilter.GaussianBlur(radius=35))
-    enhancer = ImageEnhance.Brightness(bg)
-    bg = enhancer.enhance(0.6)
-
-    # 2. Add a Glass Overlay (Central Box)
-    draw = ImageDraw.Draw(bg, "RGBA")
-    # Draw rounded main container
-    draw.rounded_rectangle((50, 50, 1230, 670), radius=30, fill=(0, 0, 0, 100), outline=(255,255,255,30), width=2)
-
-    # 3. Process Main Square Image (Front Image)
-    front_img = raw_img.copy()
-    front_img = ImageOps.fit(front_img, (450, 450), centering=(0.5, 0.5))
+async def add_controls(img: Image.Image) -> Image.Image:
+    # Background Blur
+    bg = img.filter(ImageFilter.GaussianBlur(radius=15))
+    bg = ImageEnhance.Brightness(bg).enhance(0.5)
     
-    # Rounded corners for front image
-    mask = Image.new("L", (450, 450), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.rounded_rectangle((0, 0, 450, 450), radius=35, fill=255)
-    front_img.putalpha(mask)
+    draw = ImageDraw.Draw(bg)
+    # Box design
+    draw.rounded_rectangle((305, 125, 975, 595), radius=25, fill=(0, 0, 0, 140))
     
-    # Paste Front Image
-    bg.paste(front_img, (120, 135), front_img)
-
-    # 4. Add Text (Title & Artist)
-    safe_title = clean_text(title, 25)
-    safe_artist = clean_text(f"Channel: {artist}", 30)
-    
-    # Title (Shadow effect)
-    draw.text((620, 220), safe_title, (0, 0, 0, 100), font=FONTS["title"]) # Shadow
-    draw.text((615, 215), safe_title, (255, 255, 255, 255), font=FONTS["title"]) # Main
-    
-    # Artist
-    draw.text((615, 300), safe_artist, (200, 200, 200, 255), font=FONTS["artist"])
-    
-    # Duration / Status
-    draw.text((615, 360), f"Duration: {duration}", (150, 150, 150, 255), font=FONTS["stats"])
-
-    # 5. Simple Progress Bar Design (New Look)
-    draw.rounded_rectangle((615, 450, 1100, 460), radius=5, fill=(255, 255, 255, 50))
-    draw.rounded_rectangle((615, 450, 850, 460), radius=5, fill=(255, 0, 100, 200)) # Pink accent
-    draw.ellipse((840, 445, 860, 465), fill=(255, 255, 255, 255)) # Knob
-
+    try:
+        if os.path.exists("PURVIMUSIC/assets/controls.png"):
+            con = Image.open("PURVIMUSIC/assets/controls.png").convert("RGBA")
+            con = con.resize((600, 160), Image.Resampling.LANCZOS)
+            bg.paste(con, (340, 415), con)
+    except: pass
     return bg
 
-async def get_thumb(videoid: str) -> str:
-    if not videoid:
-        return ""
+def make_rounded_rectangle(image: Image.Image, size: tuple = (200, 200)) -> Image.Image:
+    image = ImageOps.fit(image, size, centering=(0.5, 0.5))
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rounded_rectangle((0, 0, size[0], size[1]), radius=25, fill=255)
+    image.putalpha(mask)
+    return image
 
-    save_path = f"database/photos/{videoid}.png"
+async def get_thumb(videoid: str) -> str:
+    if not videoid: return ""
+    save_dir = f"database/photos/{videoid}.png"
+    
     if not os.path.exists("database/photos"):
         os.makedirs("database/photos", exist_ok=True)
 
-    # Metadata fetching
-    title, artist, thumb_url, duration = "Music", "Unknown", "", "00:00"
-    
-    try:
-        search = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
-        resp = await search.next()
-        if resp and resp.get("result"):
-            res = resp["result"][0]
-            title = res.get("title", "Unknown")
-            artist = res.get("channel", {}).get("name", "Unknown")
-            duration = res.get("duration", "04:00")
-            # Sabse High Res Thumbnail nikalna
-            thumbnails = res.get("thumbnails", [])
-            if thumbnails:
-                thumb_url = thumbnails[-1]["url"].split("?")[0] # Last one is usually maxres
-    except Exception as e:
-        LOGGER.error(f"Search Error: {e}")
-        thumb_url = f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
+    title, artist, thumb_url = "Unknown Title", "Unknown Artist", ""
 
+    # --- METADATA FETCHING (FIXED) ---
+    try:
+        # Method 1: direct Video Info (Sabse fast aur accurate)
+        video_data = await Video.getInfo(f"https://www.youtube.com/watch?v={videoid}")
+        if video_data:
+            title = video_data.get("title", "Unknown")
+            artist = video_data.get("channel", {}).get("name", "Unknown Artist")
+            thumbnails = video_data.get("thumbnails", [])
+            thumb_url = thumbnails[-1]["url"].split("?")[0] if thumbnails else f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
+    except Exception as e:
+        LOGGER.error(f"Method 1 failed: {e}")
+        try:
+            # Method 2: Search Fallback
+            results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
+            resp = await results.next()
+            if resp and "result" in resp and len(resp["result"]) > 0:
+                res = resp["result"][0]
+                title = res.get("title", "Unknown")
+                artist = res.get("channel", {}).get("name", "Unknown")
+                thumb_url = res.get("thumbnails", [{}])[0].get("url", "").split("?")[0]
+        except Exception as e2:
+            LOGGER.error(f"Method 2 failed: {e2}")
+            thumb_url = f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
+
+    # --- IMAGE PROCESSING ---
     try:
         raw_img = await fetch_image(thumb_url)
-        final_thumb = await create_modern_thumb(raw_img, title, artist, duration)
+        bg = await add_controls(raw_img)
+        rounded_art = make_rounded_rectangle(raw_img, size=(210, 210))
         
-        final_thumb = final_thumb.convert("RGB")
-        final_thumb.save(save_path, "JPEG", quality=90) # JPEG is faster & smaller
+        bg.paste(rounded_art, (340, 165), rounded_art)
+        
+        draw = ImageDraw.Draw(bg)
+        draw.text((570, 180), clean_text(title, 25), (255, 255, 255), font=FONTS["tfont"])
+        draw.text((570, 230), clean_text(artist, 30), (200, 200, 200), font=FONTS["cfont"])
+
+        bg = bg.convert("RGB")
+        bg.save(save_dir, "JPEG", quality=90) # PNG ki jagah JPEG use karein fast loading ke liye
         
         raw_img.close()
-        final_thumb.close()
-        return save_path
+        bg.close()
+        return save_dir
     except Exception as e:
-        LOGGER.error(f"Process Error: {e}")
+        LOGGER.error(f"Thumbnail generation error: {e}")
         return ""
