@@ -9,12 +9,8 @@ from pyrogram.errors.exceptions.bad_request_400 import (
     UserAdminInvalid,
     BadRequest
 )
-
 import datetime
 from PURVIMUSIC import app
-
-
-
 
 def mention(user, name, mention=True):
     if mention == True:
@@ -23,66 +19,43 @@ def mention(user, name, mention=True):
         link = f"[{name}](https://t.me/{user})"
     return link
 
-
-
 async def get_userid_from_username(username):
     try:
         user = await app.get_users(username)
+        return [user.id, user.first_name]
     except:
         return None
-    
-    user_obj = [user.id, user.first_name]
-    return user_obj
-
 
 async def ban_user(user_id, first_name, admin_id, admin_name, chat_id, reason, time=None):
     try:
         await app.ban_chat_member(chat_id, user_id)
     except ChatAdminRequired:
-        msg_text = "Ban rights? Nah, I'm just here for the digital high-fives 🙌\nGive me ban rights! 😡🥺"
-        return msg_text, False
+        return "I need Ban Rights to perform this action! 😡", False
     except UserAdminInvalid:
-        msg_text = "I wont ban an admin bruh!!"
-        return msg_text, False
+        return "I cannot ban an administrator!", False
     except Exception as e:
-        if user_id == 6711389550:
-            msg_text = "why should i ban myself? sorry but I'm not stupid like you"
-            return msg_text, False
-        
-        msg_text = f"opps!!\n{e}"
-        return msg_text, False
+        if user_id == (await app.get_me()).id:
+            return "Why should I ban myself? I'm not that stupid.", False
+        return f"Error: {e}", False
 
     user_mention = mention(user_id, first_name)
     admin_mention = mention(admin_id, admin_name)
-
-    msg_text += f""
-    msg_text += f"{user_mention} was banned by {admin_mention}\n"
-    
-    if reason:
-        msg_text += f"Reason: `{reason}`\n"
-    if time:
-        msg_text += f"Time: `{time}`\n"
-
+    msg_text = f"{user_mention} was banned by {admin_mention}\n"
+    if reason: msg_text += f"Reason: `{reason}`\n"
+    if time: msg_text += f"Time: `{time}`\n"
     return msg_text, True
-
 
 async def unban_user(user_id, first_name, admin_id, admin_name, chat_id):
     try:
         await app.unban_chat_member(chat_id, user_id)
     except ChatAdminRequired:
-        msg_text = "Ban rights? Nah, I'm just here for the digital high-fives 🙌\nGive me ban rights! 😡🥺"
-        return msg_text
+        return "I need admin rights to unban users!"
     except Exception as e:
-        msg_text = f"opps!!\n{e}"
-        return msg_text
+        return f"Error: {e}"
 
     user_mention = mention(user_id, first_name)
     admin_mention = mention(admin_id, admin_name)
-    
-    msg_text = f"{user_mention} was unbanned by {admin_mention}"
-    return msg_text
-
-
+    return f"{user_mention} was unbanned by {admin_mention}"
 
 async def mute_user(user_id, first_name, admin_id, admin_name, chat_id, reason, time=None):
     try:
@@ -92,37 +65,22 @@ async def mute_user(user_id, first_name, admin_id, admin_name, chat_id, reason, 
         else:
             await app.restrict_chat_member(chat_id, user_id, ChatPermissions())
     except ChatAdminRequired:
-        msg_text = "Mute rights? Nah, I'm just here for the digital high-fives 🙌\nGive me mute rights! 😡🥺"
-        return msg_text, False
+        return "I need Mute Rights to perform this action!", False
     except UserAdminInvalid:
-        msg_text = "I wont mute an admin bruh!!"
-        return msg_text, False
+        return "I cannot mute an administrator!", False
     except Exception as e:
-        if user_id == 6664582540:
-            msg_text = "why should i mute myself? sorry but I'm not stupid like you"
-            return msg_text, False
-        
-        msg_text = f"opps!!\n{e}"
-        return msg_text, False
+        return f"Error: {e}", False
 
     user_mention = mention(user_id, first_name)
     admin_mention = mention(admin_id, admin_name)
-
-    msg_text += f"{user_mention} was muted by {admin_mention}\n"
-    
-    if reason:
-        msg_text += f"Reason: `{reason}`\n"
-    if time:
-        msg_text += f"Time: `{time}`\n"
-
+    msg_text = f"{user_mention} was muted by {admin_mention}\n"
+    if reason: msg_text += f"Reason: `{reason}`\n"
     return msg_text, True
-
 
 async def unmute_user(user_id, first_name, admin_id, admin_name, chat_id):
     try:
         await app.restrict_chat_member(
-            chat_id,
-            user_id,
+            chat_id, user_id,
             ChatPermissions(
                 can_send_media_messages=True,
                 can_send_messages=True,
@@ -133,38 +91,34 @@ async def unmute_user(user_id, first_name, admin_id, admin_name, chat_id):
             )
         )
     except ChatAdminRequired:
-        msg_text = "Mute rights? Nah, I'm just here for the digital high-fives 🙌\nGive me unmute rights! 😡🥺"
-        return msg_text
+        return "I need admin rights to unmute users!"
     except Exception as e:
-        msg_text = f"opps!!\n{e}"
-        return msg_text
+        return f"Error: {e}"
 
     user_mention = mention(user_id, first_name)
     admin_mention = mention(admin_id, admin_name)
-    
-    msg_text = f"{user_mention} was unmuted by {admin_mention}"
-    return msg_text
-    
+    return f"{user_mention} was unmuted by {admin_mention}"
 
+# --- HANDLERS ---
 
 @app.on_message(filters.command(["ban"]))
 async def ban_command_handler(client, message):
     chat = message.chat
-    chat_id = chat.id
     admin_id = message.from_user.id
     admin_name = message.from_user.first_name
-    member = await chat.get_member(admin_id)
-    if member.status == enums.ChatMemberStatus.ADMINISTRATOR or member.status == enums.ChatMemberStatus.OWNER:
-        if member.privileges.can_restrict_members:
-            pass
-        else:
-            msg_text = "You dont have permission to ban someone"
-            return await message.reply_text(msg_text)
-    else:
-        msg_text = "You dont have permission to ban someone"
-        return await message.reply_text(msg_text)
+    
+    # FIX: Wrap get_member in try-except
+    try:
+        member = await chat.get_member(admin_id)
+    except ChatAdminRequired:
+        return await message.reply_text("I cannot check permissions because I am not an admin! Please promote me first.")
 
-    # Extract the user ID from the command or reply
+    if not (member.status == enums.ChatMemberStatus.ADMINISTRATOR or member.status == enums.ChatMemberStatus.OWNER):
+        return await message.reply_text("You are not an admin!")
+    
+    if member.status == enums.ChatMemberStatus.ADMINISTRATOR and not member.privileges.can_restrict_members:
+        return await message.reply_text("You don't have the 'Ban Users' permission.")
+
     if len(message.command) > 1:
         if message.reply_to_message:
             user_id = message.reply_to_message.from_user.id
@@ -176,245 +130,99 @@ async def ban_command_handler(client, message):
                 first_name = "User"
             except:
                 user_obj = await get_userid_from_username(message.command[1])
-                if user_obj == None:
-                    return await message.reply_text("I can't find that user")
-                user_id = user_obj[0]
-                first_name = user_obj[1]
-
-            try:
-                reason = message.text.partition(message.command[1])[2]
-            except:
-                reason = None
-
+                if not user_obj: return await message.reply_text("User not found.")
+                user_id, first_name = user_obj[0], user_obj[1]
+            reason = message.text.partition(message.command[1])[2] or None
     elif message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         first_name = message.reply_to_message.from_user.first_name
         reason = None
     else:
-        await message.reply_text("Please specify a valid user or reply to that user's message")
-        return
+        return await message.reply_text("Reply to a message or provide a User ID/Username to ban.")
         
-    msg_text, result = await ban_user(user_id, first_name, admin_id, admin_name, chat_id, reason)
-    if result == True:
-        await message.reply_text(msg_text)
-    if result == False:
-        await message.reply_text(msg_text)
-
+    msg_text, result = await ban_user(user_id, first_name, admin_id, admin_name, chat.id, reason)
+    await message.reply_text(msg_text)
 
 @app.on_message(filters.command(["unban"]))
 async def unban_command_handler(client, message):
     chat = message.chat
-    chat_id = chat.id
     admin_id = message.from_user.id
-    admin_name = message.from_user.first_name
-    member = await chat.get_member(admin_id)
-    if member.status == enums.ChatMemberStatus.ADMINISTRATOR or member.status == enums.ChatMemberStatus.OWNER:
-        if member.privileges.can_restrict_members:
-            pass
-        else:
-            msg_text = "You dont have permission to unban someone"
-            return await message.reply_text(msg_text)
-    else:
-        msg_text = "You dont have permission to unban someone"
-        return await message.reply_text(msg_text)
+    
+    try:
+        member = await chat.get_member(admin_id)
+    except ChatAdminRequired:
+        return await message.reply_text("Make me admin first!")
 
-    # Extract the user ID from the command or reply
+    if not (member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]):
+        return await message.reply_text("Admins only!")
+
     if len(message.command) > 1:
         try:
             user_id = int(message.command[1])
             first_name = "User"
         except:
             user_obj = await get_userid_from_username(message.command[1])
-            if user_obj == None:
-                    return await message.reply_text("I can't find that user")
-            user_id = user_obj[0]
-            first_name = user_obj[1]
-
+            if not user_obj: return await message.reply_text("User not found.")
+            user_id, first_name = user_obj[0], user_obj[1]
     elif message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         first_name = message.reply_to_message.from_user.first_name
     else:
-        await message.reply_text("Please specify a valid user or reply to that user's message")
-        return
+        return await message.reply_text("Who should I unban?")
         
-    msg_text = await unban_user(user_id, first_name, admin_id, admin_name, chat_id)
+    msg_text = await unban_user(user_id, first_name, admin_id, message.from_user.first_name, chat.id)
     await message.reply_text(msg_text)
-
-
-
 
 @app.on_message(filters.command(["mute"]))
 async def mute_command_handler(client, message):
     chat = message.chat
-    chat_id = chat.id
     admin_id = message.from_user.id
-    admin_name = message.from_user.first_name
-    member = await chat.get_member(admin_id)
-    if member.status == enums.ChatMemberStatus.ADMINISTRATOR or member.status == enums.ChatMemberStatus.OWNER:
-        if member.privileges.can_restrict_members:
-            pass
-        else:
-            msg_text = "You dont have permission to mute someone"
-            return await message.reply_text(msg_text)
-    else:
-        msg_text = "You dont have permission to mute someone"
-        return await message.reply_text(msg_text)
+    
+    try:
+        member = await chat.get_member(admin_id)
+    except ChatAdminRequired:
+        return await message.reply_text("I need admin rights to check your permissions!")
 
-    # Extract the user ID from the command or reply
-    if len(message.command) > 1:
-        if message.reply_to_message:
-            user_id = message.reply_to_message.from_user.id
-            first_name = message.reply_to_message.from_user.first_name
-            reason = message.text.split(None, 1)[1]
-        else:
-            try:
-                user_id = int(message.command[1])
-                first_name = "User"
-            except:
-                user_obj = await get_userid_from_username(message.command[1])
-                if user_obj == None:
-                    return await message.reply_text("I can't find that user")
-                user_id = user_obj[0]
-                first_name = user_obj[1]
+    if not (member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]):
+        return await message.reply_text("You are not an admin!")
 
-            try:
-                reason = message.text.partition(message.command[1])[2]
-            except:
-                reason = None
-
-    elif message.reply_to_message:
+    if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         first_name = message.reply_to_message.from_user.first_name
+        reason = message.text.split(None, 1)[1] if len(message.command) > 1 else None
+    elif len(message.command) > 1:
+        user_obj = await get_userid_from_username(message.command[1])
+        if not user_obj: return await message.reply_text("User not found.")
+        user_id, first_name = user_obj[0], user_obj[1]
         reason = None
     else:
-        await message.reply_text("Please specify a valid user or reply to that user's message")
-        return
+        return await message.reply_text("Reply to someone to mute them.")
     
-    msg_text, result = await mute_user(user_id, first_name, admin_id, admin_name, chat_id, reason)
-    if result == True:
-        await message.reply_text(msg_text)
-           
-    if result == False:
-        await message.reply_text(msg_text)
-
+    msg_text, result = await mute_user(user_id, first_name, admin_id, message.from_user.first_name, chat.id, reason)
+    await message.reply_text(msg_text)
 
 @app.on_message(filters.command(["unmute"]))
 async def unmute_command_handler(client, message):
     chat = message.chat
-    chat_id = chat.id
     admin_id = message.from_user.id
-    admin_name = message.from_user.first_name
-    member = await chat.get_member(admin_id)
-    if member.status == enums.ChatMemberStatus.ADMINISTRATOR or member.status == enums.ChatMemberStatus.OWNER:
-        if member.privileges.can_restrict_members:
-            pass
-        else:
-            msg_text = "You dont have permission to unmute someone"
-            return await message.reply_text(msg_text)
-    else:
-        msg_text = "You dont have permission to unmute someone"
-        return await message.reply_text(msg_text)
+    
+    try:
+        member = await chat.get_member(admin_id)
+    except ChatAdminRequired:
+        return await message.reply_text("Promote me to admin first!")
 
-    # Extract the user ID from the command or reply
-    if len(message.command) > 1:
-        try:
-            user_id = int(message.command[1])
-            first_name = "User"
-        except:
-            user_obj = await get_userid_from_username(message.command[1])
-            if user_obj == None:
-                    return await message.reply_text("I can't find that user")
-            user_id = user_obj[0]
-            first_name = user_obj[1]
+    if not (member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]):
+        return await message.reply_text("Admins only!")
 
-    elif message.reply_to_message:
+    if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         first_name = message.reply_to_message.from_user.first_name
+    elif len(message.command) > 1:
+        user_obj = await get_userid_from_username(message.command[1])
+        if not user_obj: return await message.reply_text("User not found.")
+        user_id, first_name = user_obj[0], user_obj[1]
     else:
-        await message.reply_text("Please specify a valid user or reply to that user's message")
-        return
+        return await message.reply_text("Reply to someone to unmute them.")
         
-    msg_text = await unmute_user(user_id, first_name, admin_id, admin_name, chat_id)
+    msg_text = await unmute_user(user_id, first_name, admin_id, message.from_user.first_name, chat.id)
     await message.reply_text(msg_text)
-
-
-
-
-
-@app.on_message(filters.command(["tmute"]))
-async def tmute_command_handler(client, message):
-    chat = message.chat
-    chat_id = chat.id
-    admin_id = message.from_user.id
-    admin_name = message.from_user.first_name
-    member = await chat.get_member(admin_id)
-    if member.status == enums.ChatMemberStatus.ADMINISTRATOR or member.status == enums.ChatMemberStatus.OWNER:
-        if member.privileges.can_restrict_members:
-            pass
-        else:
-            msg_text = "You dont have permission to mute someone"
-            return await message.reply_text(msg_text)
-    else:
-        msg_text = "You dont have permission to mute someone"
-        return await message.reply_text(msg_text)
-
-    # Extract the user ID from the command or reply
-    if len(message.command) > 1:
-        if message.reply_to_message:
-            user_id = message.reply_to_message.from_user.id
-            first_name = message.reply_to_message.from_user.first_name
-            time = message.text.split(None, 1)[1]
-
-            try:
-                time_amount = time.split(time[-1])[0]
-                time_amount = int(time_amount)
-            except:
-                return await message.reply_text("wrong format!!\nFormat: `/tmute 2m`")
-
-            if time[-1] == "m":
-                mute_duration = datetime.timedelta(minutes=time_amount)
-            elif time[-1] == "h":
-                mute_duration = datetime.timedelta(hours=time_amount)
-            elif time[-1] == "d":
-                mute_duration = datetime.timedelta(days=time_amount)
-            else:
-                return await message.reply_text("wrong format!!\nFormat:\nm: Minutes\nh: Hours\nd: Days")
-        else:
-            try:
-                user_id = int(message.command[1])
-                first_name = "User"
-            except:
-                user_obj = await get_userid_from_username(message.command[1])
-                if user_obj == None:
-                    return await message.reply_text("I can't find that user")
-                user_id = user_obj[0]
-                first_name = user_obj[1]
-
-            try:
-                time = message.text.partition(message.command[1])[2]
-                try:
-                    time_amount = time.split(time[-1])[0]
-                    time_amount = int(time_amount)
-                except:
-                    return await message.reply_text("wrong format!!\nFormat: `/tmute 2m`")
-
-                if time[-1] == "m":
-                    mute_duration = datetime.timedelta(minutes=time_amount)
-                elif time[-1] == "h":
-                    mute_duration = datetime.timedelta(hours=time_amount)
-                elif time[-1] == "d":
-                    mute_duration = datetime.timedelta(days=time_amount)
-                else:
-                    return await message.reply_text("wrong format!!\nFormat:\nm: Minutes\nh: Hours\nd: Days")
-            except:
-                return await message.reply_text("Please specify a valid user or reply to that user's message\nFormat: `/tmute @user 2m`")
-
-    else:
-        await message.reply_text("Please specify a valid user or reply to that user's message\nFormat: /tmute <username> <time>")
-        return
-    
-    msg_text, result = await mute_user(user_id, first_name, admin_id, admin_name, chat_id, reason=None, time=mute_duration)
-    if result == True:
-        await message.reply_text(msg_text)
-    if result == False:
-        await message.reply_text(msg_text)
