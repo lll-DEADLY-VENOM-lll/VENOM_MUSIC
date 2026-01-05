@@ -50,3 +50,5 @@ pyfiglet
 qrcode
 pydub
 python-whois
+tgcrypto
+pyrogram
