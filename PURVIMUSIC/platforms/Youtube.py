@@ -7,7 +7,7 @@ from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from ytmusicapi import YTMusic
 
-# Global instance
+# Global instance for YT Music
 yt_music = YTMusic()
 
 def time_to_seconds(time):
@@ -23,7 +23,7 @@ class YouTubeAPI:
         self.regex = r"(?:youtube\.com|youtu\.be|music\.youtube\.com)"
         self.cookies = "PURVIMUSIC/cookies.txt"
 
-    # --- YE FUNCTION MISSING THA, AB ADD KAR DIYA HAI ---
+    # --- Telegram Message se URL nikalne ke liye (Fixed AttributeError) ---
     async def url(self, message_1: Message) -> Union[str, None]:
         messages = [message_1]
         if message_1.reply_to_message:
@@ -56,20 +56,24 @@ class YouTubeAPI:
             return True
         return False
 
+    # --- Gaane ki details (SABR Fix ke saath) ---
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
 
+        # SABR error bypass settings
+        ydl_opts = {
+            "quiet": True,
+            "cookiefile": self.cookies if os.path.exists(self.cookies) else None,
+            "geo_bypass": True,
+            "extractor_args": {"youtube": {"player_client": ["android", "web"], "player_skip": ["webpage"]}},
+            "user_agent": "Mozilla/5.0 (Android 14; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0"
+        }
+
         if await self.exists(link):
-            opts = {
-                "quiet": True,
-                "cookiefile": self.cookies if os.path.exists(self.cookies) else None,
-                "geo_bypass": True,
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
-            with yt_dlp.YoutubeDL(opts) as ydl:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = await asyncio.to_thread(ydl.extract_info, link, download=False)
                 title = info['title']
                 duration_sec = info.get('duration', 0)
@@ -78,6 +82,7 @@ class YouTubeAPI:
                 vidid = info['id']
                 return title, duration_min, duration_sec, thumbnail, vidid
         else:
+            # YouTube Music Search
             search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=1)
             if not search:
                 return None
@@ -89,6 +94,7 @@ class YouTubeAPI:
             duration_sec = int(time_to_seconds(duration_min))
             return title, duration_min, duration_sec, thumbnail, vidid
 
+    # --- Direct Stream Link (SABR Fix & Android Client Force) ---
     async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
@@ -99,7 +105,8 @@ class YouTubeAPI:
             "-g",
             "--force-ipv4",
             "--no-warnings",
-            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            # SABR aur 'missing url' error ko bypass karne ke liye android client force karein
+            "--extractor-args", "youtube:player_client=android,web;player_skip=webpage",
             "-f", "bestaudio/best",
             f"{link}"
         ]
@@ -118,10 +125,14 @@ class YouTubeAPI:
         if stdout:
             return 1, stdout.decode().split("\n")[0].strip()
         else:
-            return 0, stderr.decode()
+            error_msg = stderr.decode()
+            print(f"YT-DLP ERROR: {error_msg}")
+            return 0, error_msg
 
+    # --- Playlist extraction ---
     async def playlist(self, link, limit):
         cookie_cmd = f"--cookies {self.cookies}" if os.path.exists(self.cookies) else ""
+        # Flat playlist optimization
         command = f"yt-dlp {cookie_cmd} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
         
         proc = await asyncio.create_subprocess_shell(
@@ -134,6 +145,7 @@ class YouTubeAPI:
             return [k for k in stdout.decode().split("\n") if k]
         return []
 
+    # --- Track info getter ---
     async def track(self, link: str, videoid: Union[bool, str] = None):
         res = await self.details(link, videoid)
         if not res:
@@ -148,6 +160,7 @@ class YouTubeAPI:
         }
         return track_details, vidid
 
+    # --- Download method ---
     async def download(self, link: str, title: str, songaudio=False):
         if "&" in link:
             link = link.split("&")[0]
@@ -160,6 +173,7 @@ class YouTubeAPI:
                 "format": "bestaudio/best",
                 "outtmpl": f"downloads/{title}.%(ext)s",
                 "cookiefile": self.cookies if os.path.exists(self.cookies) else None,
+                "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
                 "postprocessors": [{
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
@@ -171,4 +185,4 @@ class YouTubeAPI:
                 ydl.download([link])
             return fpath
 
-        return await loop.run_in_executor(None, dl)
+        return await loop.run_in_executor(None, dl)o
