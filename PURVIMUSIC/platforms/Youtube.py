@@ -6,13 +6,16 @@ from typing import Union
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
-from ytmusicapi import YTMusic # Updated library
+from googleapiclient.discovery import build # Official Google API
 
-from PURVIMUSIC.utils.database import is_on_off
-from PURVIMUSIC.utils.formatters import time_to_seconds
+from BIGFM.utils.formatters import time_to_seconds
 
-# Global instance of YTMusic for faster performance
-yt_music = YTMusic()
+# --- CONFIGURATION ---
+# Get your API KEY from https://console.cloud.google.com/
+API_KEY = "" 
+
+# Global instance of YouTube API
+youtube = build("youtube", "v3", developerKey=API_KEY)
 
 async def shell_cmd(cmd):
     proc = await asyncio.create_subprocess_shell(
@@ -28,8 +31,8 @@ async def shell_cmd(cmd):
             return errorz.decode("utf-8")
     return out.decode("utf-8")
 
-# If you don't have cookies.txt, it will still work but might get blocked later
-cookies_file = "PURVIMUSIC/cookies.txt"
+# Cookies handling for yt-dlp
+cookies_file = "BIGFM/cookies.txt"
 if not os.path.exists(cookies_file):
     cookies_file = None
 
@@ -37,9 +40,22 @@ class YouTubeAPI:
     def __init__(self):
         self.base = "https://www.youtube.com/watch?v="
         self.regex = r"(?:youtube\.com|youtu\.be)"
-        self.status = "https://www.youtube.com/oembed?url="
         self.listbase = "https://youtube.com/playlist?list="
-        self.reg = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+    def parse_duration(self, duration):
+        """Converts ISO 8601 duration (PT4M13S) to MM:SS and total seconds"""
+        match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        seconds = int(match.group(3) or 0)
+        
+        total_seconds = hours * 3600 + minutes * 60 + seconds
+        if hours > 0:
+            duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        else:
+            duration_str = f"{minutes:02d}:{seconds:02d}"
+            
+        return duration_str, total_seconds
 
     async def exists(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
@@ -52,44 +68,50 @@ class YouTubeAPI:
         messages = [message_1]
         if message_1.reply_to_message:
             messages.append(message_1.reply_to_message)
-        text = ""
-        offset = None
-        length = None
+        
         for message in messages:
-            if offset:
-                break
             if message.entities:
                 for entity in message.entities:
                     if entity.type == MessageEntityType.URL:
                         text = message.text or message.caption
-                        offset, length = entity.offset, entity.length
-                        break
+                        return text[entity.offset : entity.offset + entity.length]
             elif message.caption_entities:
                 for entity in message.caption_entities:
                     if entity.type == MessageEntityType.TEXT_LINK:
                         return entity.url
-        if offset in (None,):
-            return None
-        return text[offset : offset + length]
+        return None
 
-    # --- Fixed with YTMusic API ---
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
-            link = self.base + link
-        if "&" in link:
-            link = link.split("&")[0]
+            vidid = link
+        else:
+            # Extract Video ID from URL
+            match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", link)
+            vidid = match.group(1) if match else None
+
+        # If it's a search query instead of a link
+        if not vidid:
+            search_response = await asyncio.to_thread(
+                youtube.search().list(q=link, part="id", maxResults=1, type="video").execute
+            )
+            if not search_response.get("items"):
+                return None
+            vidid = search_response["items"][0]["id"]["videoId"]
+
+        # Fetch video details
+        video_response = await asyncio.to_thread(
+            youtube.videos().list(part="snippet,contentDetails", id=vidid).execute
+        )
         
-        # Search official songs on YT Music
-        search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=1)
-        if not search:
+        if not video_response.get("items"):
             return None
+
+        video_data = video_response["items"][0]
+        title = video_data["snippet"]["title"]
+        thumbnail = video_data["snippet"]["thumbnails"]["high"]["url"]
+        duration_iso = video_data["contentDetails"]["duration"]
         
-        result = search[0]
-        title = result["title"]
-        duration_min = result.get("duration", "04:00")
-        thumbnail = result["thumbnails"][-1]["url"].split("?")[0]
-        vidid = result["videoId"]
-        duration_sec = int(time_to_seconds(duration_min))
+        duration_min, duration_sec = self.parse_duration(duration_iso)
         
         return title, duration_min, duration_sec, thumbnail, vidid
 
@@ -105,11 +127,24 @@ class YouTubeAPI:
         res = await self.details(link, videoid)
         return res[3] if res else None
 
+    async def track(self, link: str, videoid: Union[bool, str] = None):
+        res = await self.details(link, videoid)
+        if not res:
+            return None, None
+        
+        title, duration_min, duration_sec, thumbnail, vidid = res
+        track_details = {
+            "title": title,
+            "link": self.base + vidid,
+            "vidid": vidid,
+            "duration_min": duration_min,
+            "thumb": thumbnail,
+        }
+        return track_details, vidid
+
     async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
-        if "&" in link:
-            link = link.split("&")[0]
         
         opts = ["yt-dlp", "-g", "-f", "best[height<=?720][width<=?1280]", f"{link}"]
         if cookies_file:
@@ -130,8 +165,6 @@ class YouTubeAPI:
     async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
         if videoid:
             link = self.listbase + link
-        if "&" in link:
-            link = link.split("&")[0]
         
         cookie_cmd = f"--cookies {cookies_file}" if cookies_file else ""
         playlist = await shell_cmd(
@@ -143,33 +176,26 @@ class YouTubeAPI:
             result = []
         return result
 
-    async def track(self, link: str, videoid: Union[bool, str] = None):
-        res = await self.details(link, videoid)
-        if not res:
-            return None, None
-        
-        title, duration_min, duration_sec, thumbnail, vidid = res
-        track_details = {
-            "title": title,
-            "link": self.base + vidid,
-            "vidid": vidid,
-            "duration_min": duration_min,
-            "thumb": thumbnail,
-        }
-        return track_details, vidid
-
     async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
-        if videoid:
-            link = self.base + link
+        search_response = await asyncio.to_thread(
+            youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute
+        )
         
-        # Get top 10 results from YT Music
-        search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=10)
-        result = search[query_type]
+        if not search_response.get("items"):
+            return None
+
+        result = search_response["items"][query_type]
+        vidid = result["id"]["videoId"]
+        title = result["snippet"]["title"]
+        thumbnail = result["snippet"]["thumbnails"]["high"]["url"]
         
-        title = result["title"]
-        duration_min = result.get("duration", "00:00")
-        vidid = result["videoId"]
-        thumbnail = result["thumbnails"][-1]["url"].split("?")[0]
+        # Need secondary call for duration
+        video_res = await asyncio.to_thread(
+            youtube.videos().list(part="contentDetails", id=vidid).execute
+        )
+        duration_iso = video_res["items"][0]["contentDetails"]["duration"]
+        duration_min, _ = self.parse_duration(duration_iso)
+
         return title, duration_min, thumbnail, vidid
 
     async def download(
@@ -222,11 +248,9 @@ class YouTubeAPI:
             await loop.run_in_executor(None, sa_dl)
             return fpath
 
-        elif video:
-            direct = True
+        if video:
             downloaded_file = await loop.run_in_executor(None, video_dl)
         else:
-            direct = True
             downloaded_file = await loop.run_in_executor(None, audio_dl)
         
-        return downloaded_file, direct
+        return downloaded_file, True
