@@ -14,7 +14,7 @@ import config
 from PURVIMUSIC.utils.formatters import time_to_seconds
 
 # API Keys ki list
-API_KEYS = [k for k in [config.YT_API_KEY, config.YT_API_KEY_2, config.YT_API_KEY_3] if k]
+API_KEYS = [k for k in [config.YT_API_KEY_1, config.YT_API_KEY_2, config.YT_API_KEY_3] if k]
 current_key_index = 0  # Pehle 0 index (Pehli Key) se shuru karega
 
 def get_youtube_client():
