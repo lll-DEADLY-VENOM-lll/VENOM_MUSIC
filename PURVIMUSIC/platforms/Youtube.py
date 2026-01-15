@@ -6,16 +6,14 @@ from typing import Union
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
-from googleapiclient.discovery import build # Official Google API
+from googleapiclient.discovery import build
 
+# --- CONFIG IMPORT ---
+import config  # Yahan config file import ho rahi hai
 from PURVIMUSIC.utils.formatters import time_to_seconds
 
-# --- CONFIGURATION ---
-# Get your API KEY from https://console.cloud.google.com/
-API_KEY = "AIzaSyC_yPuJD0S75qMQFg-WobboAEPRjHXpl1M" 
-
-# Global instance of YouTube API
-youtube = build("youtube", "v3", developerKey=API_KEY)
+# Global instance of YouTube API using key from config.py
+youtube = build("youtube", "v3", developerKey=config.API_KEY)
 
 async def shell_cmd(cmd):
     proc = await asyncio.create_subprocess_shell(
@@ -31,8 +29,8 @@ async def shell_cmd(cmd):
             return errorz.decode("utf-8")
     return out.decode("utf-8")
 
-# Cookies handling for yt-dlp
-cookies_file = "PURVIMUSIC/cookies.txt"
+# Cookies handling using path from config.py
+cookies_file = config.COOKIES_FILE_PATH
 if not os.path.exists(cookies_file):
     cookies_file = None
 
@@ -43,7 +41,6 @@ class YouTubeAPI:
         self.listbase = "https://youtube.com/playlist?list="
 
     def parse_duration(self, duration):
-        """Converts ISO 8601 duration (PT4M13S) to MM:SS and total seconds"""
         match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
         hours = int(match.group(1) or 0)
         minutes = int(match.group(2) or 0)
@@ -85,11 +82,9 @@ class YouTubeAPI:
         if videoid:
             vidid = link
         else:
-            # Extract Video ID from URL
             match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", link)
             vidid = match.group(1) if match else None
 
-        # If it's a search query instead of a link
         if not vidid:
             search_response = await asyncio.to_thread(
                 youtube.search().list(q=link, part="id", maxResults=1, type="video").execute
@@ -98,7 +93,6 @@ class YouTubeAPI:
                 return None
             vidid = search_response["items"][0]["id"]["videoId"]
 
-        # Fetch video details
         video_response = await asyncio.to_thread(
             youtube.videos().list(part="snippet,contentDetails", id=vidid).execute
         )
@@ -189,7 +183,6 @@ class YouTubeAPI:
         title = result["snippet"]["title"]
         thumbnail = result["snippet"]["thumbnails"]["high"]["url"]
         
-        # Need secondary call for duration
         video_res = await asyncio.to_thread(
             youtube.videos().list(part="contentDetails", id=vidid).execute
         )
@@ -253,4 +246,4 @@ class YouTubeAPI:
         else:
             downloaded_file = await loop.run_in_executor(None, audio_dl)
         
-        return downloaded_file, True
+        return downloaded_filej
