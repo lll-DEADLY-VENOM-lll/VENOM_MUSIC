@@ -14,7 +14,7 @@ MONGO_DB_URI = getenv("MONGO_DB_URI", None)
 # -----------------------------------------------------------------
 # YOUTUBE API KEYS (MULTI-KEY SUPPORT)
 # -----------------------------------------------------------------
-API_KEY = getenv("API_KEY", "AIzaSyC_yPuJD0S75qMQFg-WobboAEPRjHXpl1M, AIzaSyB5ofI6tA5S-fX1cCKvXuompJKnJRiv1SE")
+API_KEY = getenv("API_KEY", "AIzaSyDivkc7Kr4lilEHVt4Gnq9BEdzxeNFztKw, AIzaSyDivkc7Kr4lilEHVt4Gnq9BEdzxeNFztKw ,AIzaSyB5ofI6tA5S-fX1cCKvXuompJKnJRiv1SE")
 # -----------------------------------------------------------------
 
 # --- BOT & OWNER DETAILS ---
