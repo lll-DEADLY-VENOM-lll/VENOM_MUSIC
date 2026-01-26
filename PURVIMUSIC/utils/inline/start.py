@@ -1,8 +1,6 @@
 from pyrogram.types import InlineKeyboardButton
-
 import config
 from PURVIMUSIC import app
-
 
 def start_panel(_):
     buttons = [
@@ -25,7 +23,10 @@ def private_panel(_):
             )
         ],
         [
-            InlineKeyboardButton(text=_["S_B_5"], user_id=config.OWNER_ID),
+            # YAHAN CHANGE KIYA GAYA HAI: user_id ko hata kar tg:// user link dala gaya hai
+            InlineKeyboardButton(
+                text=_["S_B_5"], url=f"tg://openmessage?user_id={config.OWNER_ID}"
+            ),
             InlineKeyboardButton(text=_["S_B_6"], url=config.SUPPORT_CHANNEL),
         ],
         [
